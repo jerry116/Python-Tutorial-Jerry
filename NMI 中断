@@ -1,0 +1,23 @@
+NMI(non-maskable interrupt)，就是不可屏蔽的中断。根据Intel的Software Developer手册Volume 3，NMI的来源有两个：
+– NMI pin
+– delivery mode NMI messages through system bus or local APIC serial bus
+
+NMI通常用于通知操作系统发生了无法恢复的硬件错误，也可以用于系统调试与采样，大多数服务器还提供了人工触发NMI的接口，比如NMI按钮或者iLO命令等。
+
+无法恢复的硬件错误通常包括：芯片错误、内存ECC校验错、总线数据损坏等等。
+当系统挂起，失去响应的时候，可以人工触发NMI，使系统重置，如果早已配置好了kdump，那么会保存crash dump以供分析。
+有的服务器提供了NMI按钮，而刀片服务器通常不提供按钮，但可以用iLO命令触发。
+Linux还提供一种称为”NMI watchdog“的机制，用于检测系统是否失去响应（也称为lockup），可以配置为在发生lockup时自动触发panic。
+原理是周期性地生成NMI，
+由NMI handler检查hrtimer中断的发生次数，如果一定时间内这个数字停顿了，表示系统失去了响应，于是调用panic例程。
+NMI watchdog的开关是通过内核参数 kernel.nmi_watchdog 或者在boot parameter中加入”nmi_watchdog=1″参数实现，比如：
+在RHEL上编辑 /boot/grub/menu.lst:
+…
+kernel /vmlinuz-2.6.18-128.el5 ro root=/dev/sda nmi_watchdog=1
+…
+然后你会看到：
+# grep NMI /proc/interrupts
+NMI: 0 0 0 0
+Linux kernel笼统地把NMI分为三大类：内存校验错 mem_parity_error()，总线数据损坏 io_check_error()，其他的全部归入 unknown_nmi_error()。
+kernel对NMI是不能精确定位的，对故障诊断很不利，硬件驱动程序可以注册自己的NMI处理例程，
+kernel会在发生NMI之后通过notify_die()调用这些第三方注册的处理例程。
